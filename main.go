@@ -1,12 +1,14 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -62,8 +64,13 @@ func main() {
 	withLogin := e.Group("")
 	withLogin.Use(checkLogin)
 	withLogin.GET("/cities/:cityName", getCityInfoHandler)
+	withLogin.POST("/post", postTextHandler)
 
 	e.Start(":10500")
+}
+
+type postText struct {
+	Text string `json:"text,omitempty" form:"Text"`
 }
 
 type LoginRequestBody struct {
@@ -167,4 +174,27 @@ func getCityInfoHandler(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, city)
+}
+func time2str(t time.Time) string {
+	// レシーバーtを、"YYYY-MM-DDTHH-MM-SSZZZZ"という形の文字列に変換する
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+func postTextHandler(c echo.Context) error {
+	req := postText{}
+	c.Bind(&req)
+	clock := time.Now()
+	sess, err := session.Get("sessions", c)
+	if err != nil {
+		fmt.Println(err)
+		return c.String(http.StatusInternalServerError, "something wrong in getting session")
+	}
+	targetText := []byte(req.Text + sess.Values["userName"].(string) + time2str(clock))
+	sha256 := sha256.Sum256(targetText)
+	hashed := fmt.Sprintf("%x", sha256)
+
+	_, err = db.Exec("INSERT INTO `naro-portal-post` (Text, Username, Timestamp, HashedPost) VALUES (?, ?,?,?)", req.Text, sess.Values["userName"].(string), clock, hashed)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("db error: %v", err))
+	}
+	return c.NoContent(http.StatusOK)
 }
