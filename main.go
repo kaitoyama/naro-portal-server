@@ -66,8 +66,13 @@ func main() {
 	withLogin.GET("/cities/:cityName", getCityInfoHandler)
 	withLogin.POST("/post", postTextHandler)
 	withLogin.GET("/recent/:number", getRecentPostHandler)
+	withLogin.GET("/whoami", getWhoAmIHandler)
 
 	e.Start(":10500")
+}
+
+type Me struct {
+	Username string `json:"username,omitempty"  db:"username"`
 }
 
 type postText struct {
@@ -191,7 +196,7 @@ func postTextHandler(c echo.Context) error {
 		fmt.Println(err)
 		return c.String(http.StatusInternalServerError, "something wrong in getting session")
 	}
-	targetText := []byte(req.Text + sess.Values["userName"].(string) + time2str(clock))
+	targetText := []byte(req.Text + sess.Values["userName"].(string))
 	sha256 := sha256.Sum256(targetText)
 	hashed := fmt.Sprintf("%x", sha256)
 
@@ -207,4 +212,12 @@ func getRecentPostHandler(c echo.Context) error {
 	resentPost := []postText{}
 	db.Select(&resentPost, "SELECT Text,Username,Timestamp FROM `naro-portal-post` ORDER BY Timestamp DESC LIMIT ?", number)
 	return c.JSON(http.StatusOK, resentPost)
+}
+
+func getWhoAmIHandler(c echo.Context) error {
+	sess, _ := session.Get("sessions", c)
+
+	return c.JSON(http.StatusOK, Me{
+		Username: sess.Values["userName"].(string),
+	})
 }
