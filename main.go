@@ -65,12 +65,15 @@ func main() {
 	withLogin.Use(checkLogin)
 	withLogin.GET("/cities/:cityName", getCityInfoHandler)
 	withLogin.POST("/post", postTextHandler)
+	withLogin.GET("/recent/:number", getRecentPostHandler)
 
 	e.Start(":10500")
 }
 
 type postText struct {
-	Text string `json:"text,omitempty" form:"Text"`
+	Text      string    `json:"text,omitempty" db:"Text"`
+	Username  string    `json:"username,omitempty" db:"Username"`
+	TimeStamp time.Time `json:"timeStamp,omitempty" db:"Timestamp"`
 }
 
 type LoginRequestBody struct {
@@ -197,4 +200,11 @@ func postTextHandler(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("db error: %v", err))
 	}
 	return c.NoContent(http.StatusOK)
+}
+
+func getRecentPostHandler(c echo.Context) error {
+	number := c.Param("number")
+	resentPost := []postText{}
+	db.Select(&resentPost, "SELECT Text,Username,Timestamp FROM `naro-portal-post` ORDER BY Timestamp DESC LIMIT ?", number)
+	return c.JSON(http.StatusOK, resentPost)
 }
